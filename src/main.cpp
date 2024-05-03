@@ -1,49 +1,66 @@
 #include <Arduino.h>
-#include <ESP32Servo.h>
-/* #include <Servo.h> */
-/* #include <Stepper.h> */
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <SPI.h> // Incluir la librería SPI.h
 
-// Definición de pines para los motores
-/* const int microServoPin = 13; */
-const int servo2Pin = 12;
-const int servo3Pin = 14;
-/* const int stepper1Pin1 = 27;
-const int stepper1Pin2 = 26;
-const int stepper2Pin1 = 25;
-const int stepper2Pin2 = 33; */
+// Dirección I2C del PCA9685
+#define PCA9685_ADDRESS 0x40
 
-//Servos y steppers
-/* Servo microServo1;
-Stepper stepper1(200, stepper1Pin1, stepper1Pin2);
-Stepper stepper2(200, stepper2Pin1, stepper2Pin2); */
-Servo servo2;
-Servo servo3;
+// Definir el pin del servo
+#define SERVO_PIN 0
+
+// Definir el ángulo de inicio y fin del servo
+#define SERVO_HOME_ANGLE 90
+#define SERVO_MIN_ANGLE 0
+#define SERVO_MAX_ANGLE 180
+
+// Crear una instancia del controlador PCA9685
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(PCA9685_ADDRESS);
 
 void setup() {
-  // put your setup code here, to run once:
-  
-/*   microServo1.attach(6); */
-  servo2.attach(7);
-  servo3.attach(8);
+  Serial.begin(115200);
+  Wire.begin();
+  pwm.begin();
+  pwm.setPWMFreq(50); // Frecuencia de 50 Hz para servos
+}
 
-  /* microServo1.write(90); */
-  servo2.write(90);
-  servo3.write(90);
+void moveServoSmooth(int targetAngle, int servoSpeed) {
+  int currentAngle = SERVO_HOME_ANGLE;
+  int angleStep = 1; // Incremento/decremento de 1 grado por paso
+  int delayTime = 1000 / servoSpeed; // Tiempo de retardo entre pasos (ms)
 
-/*   // Mueve el stepper motor a 90 grados (en sentido horario)
-  int stepsToMove1 = 90 * 200 / 360;  // Calcula la cantidad de pasos para 90 grados
-  stepper1.step(stepsToMove1); 
-  int stepsToMove2 = 90 * 200 / 360;  // Calcula la cantidad de pasos para 90 grados
-  stepper2.step(stepsToMove2); */
+  // Asegurarse de que el ángulo objetivo esté dentro del rango válido
+  if (targetAngle < SERVO_MIN_ANGLE) {
+    targetAngle = SERVO_MIN_ANGLE;
+  } else if (targetAngle > SERVO_MAX_ANGLE) {
+    targetAngle = SERVO_MAX_ANGLE;
+  }
+
+  // Mover el servo de la posición actual al ángulo objetivo
+  if (targetAngle > currentAngle) {
+    // Mover el servo hacia arriba
+    for (int angle = currentAngle; angle <= targetAngle; angle += angleStep) {
+      pwm.setPWM(SERVO_PIN, 0, map(angle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, 10, 600));
+      delay(delayTime);
+    }
+  } else {
+    // Mover el servo hacia abajo
+    for (int angle = currentAngle; angle >= targetAngle; angle -= angleStep) {
+      pwm.setPWM(SERVO_PIN, 0, map(angle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, 10, 600));
+      delay(delayTime);
+    }
+  }
+
+  // Actualizar la posición actual del servo
+  currentAngle = targetAngle;
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  for (int i = 90; i <= 100; i++)
-  {
-    servo2.write(i++);
-    /* servo3.write(90); */
-  }
-  
-}
+  // Mueve el servo a 45 grados a una velocidad de 30 grados/segundo
+  moveServoSmooth(45, 30);
+  delay(2000); // Espera 2 segundos
 
+  // Mueve el servo a 135 grados a una velocidad de 45 grados/segundo
+  moveServoSmooth(135, 45);
+  delay(2000); // Espera 2 segundos
+}

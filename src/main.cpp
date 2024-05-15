@@ -1,49 +1,84 @@
 #include <Arduino.h>
-#include <ESP32Servo.h>
-/* #include <Servo.h> */
-/* #include <Stepper.h> */
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <SPI.h>
 
-// Definición de pines para los motores
-/* const int microServoPin = 13; */
-const int servo2Pin = 12;
-const int servo3Pin = 14;
-/* const int stepper1Pin1 = 27;
-const int stepper1Pin2 = 26;
-const int stepper2Pin1 = 25;
-const int stepper2Pin2 = 33; */
+#define PCA9685_ADDRESS 0x40
+#define SERVO_PIN_1 2
+#define SERVO_PIN_2 1
+#define SERVO_MIN_ANGLE 10
+#define SERVO_MAX_ANGLE 180
+#define LED_PIN 2
 
-//Servos y steppers
-/* Servo microServo1;
-Stepper stepper1(200, stepper1Pin1, stepper1Pin2);
-Stepper stepper2(200, stepper2Pin1, stepper2Pin2); */
-Servo servo2;
-Servo servo3;
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(PCA9685_ADDRESS);
+
+// Prototipos de función
+int readServoAngle(int servoPin);
+void moveServo(int servoPin, int startAngle, int endAngle, int speed);
 
 void setup() {
-  // put your setup code here, to run once:
-  
-/*   microServo1.attach(6); */
-  servo2.attach(7);
-  servo3.attach(8);
+  Serial.begin(115200);
+  Wire.begin();
+  pwm.begin();
+  pwm.setPWMFreq(50);
+  pinMode(LED_PIN, OUTPUT);
 
-  /* microServo1.write(90); */
-  servo2.write(90);
-  servo3.write(90);
+  int currentAngle1 = readServoAngle(SERVO_PIN_1);
+  if (currentAngle1 != 10) {
+    moveServo(SERVO_PIN_1, currentAngle1, 10, 100);
+  }
 
-/*   // Mueve el stepper motor a 90 grados (en sentido horario)
-  int stepsToMove1 = 90 * 200 / 360;  // Calcula la cantidad de pasos para 90 grados
-  stepper1.step(stepsToMove1); 
-  int stepsToMove2 = 90 * 200 / 360;  // Calcula la cantidad de pasos para 90 grados
-  stepper2.step(stepsToMove2); */
+  int currentAngle2 = readServoAngle(SERVO_PIN_2);
+  if (currentAngle2 != 10) {
+    moveServo(SERVO_PIN_2, currentAngle2, 10, 100);
+  }
+}
+
+// Definiciones de funciones
+int readServoAngle(int servoPin) {
+  int pulseWidth = pwm.getPWM(servoPin);
+  return map(pulseWidth, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, 0, 180);
+}
+
+void moveServo(int servoPin, int startAngle, int endAngle, int speed) {
+  startAngle = constrain(startAngle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE);
+  endAngle = constrain(endAngle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE);
+  int step = (startAngle < endAngle) ? 1 : -1;
+
+  for (int pos = startAngle; pos != endAngle; pos += step) {
+    pwm.setPWM(servoPin, 0, map(pos, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, 100, 600));
+    delay(speed);
+  }
+  pwm.setPWM(servoPin, 0, map(endAngle, SERVO_MIN_ANGLE, SERVO_MAX_ANGLE, 100, 600));
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  for (int i = 90; i <= 100; i++)
-  {
-    servo2.write(i++);
-    /* servo3.write(90); */
+  // Establecer la posición inicial de los servos en 10° si no están ya en esa posición
+  int currentAngle1 = readServoAngle(SERVO_PIN_1);
+  if (currentAngle1 != 10) {
+    moveServo(SERVO_PIN_1, currentAngle1, 10, 80);
   }
-  
-}
 
+  int currentAngle2 = readServoAngle(SERVO_PIN_2);
+  if (currentAngle2 != 10) {
+    moveServo(SERVO_PIN_2, currentAngle2, 10, 80);
+  }
+
+  // Movimiento servo 1: de 10° a 60° a 80 ms
+  moveServo(SERVO_PIN_1, 10, 60, 100);
+
+  // Movimiento servo 2: de 10° a 50° a 80 ms
+  moveServo(SERVO_PIN_2, 10, 50, 100);
+
+  // Retorno a 10°
+  moveServo(SERVO_PIN_1, 60, 10, 80);
+  moveServo(SERVO_PIN_2, 50, 10, 80);
+
+  // Encender LED
+  digitalWrite(LED_PIN, HIGH);
+  delay(2000); // Encendido por 2 segundos
+
+  // Apagar LED y esperar antes de reiniciar el loop
+  digitalWrite(LED_PIN, LOW);
+  delay(2000); // Apagado por 2 segundos
+}
